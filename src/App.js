@@ -1,24 +1,27 @@
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
+// Importa o Navbar
+import Navbar from './components/Navbar';
+
+// Importa as páginas
+import Home from './pages/Home';
+import RomaneioPage from './pages/RomaneioPage';
+import EmbalagemPage from './pages/EmbalagemPage';
+
+// Função principal
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router>
+      {/* Navbar visível em todas as páginas */}
+      <Navbar />
+
+      {/* Rotas do sistema */}
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/romaneio" element={<RomaneioPage />} />
+        <Route path="/embalagem" element={<EmbalagemPage />} />
+      </Routes>
+    </Router>
   );
 }
 
