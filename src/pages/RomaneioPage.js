@@ -1,169 +1,239 @@
+// 🔗 Importações necessárias
 import { useState } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
+// 🚀 Início do Componente
 export default function RomaneioPage() {
+  const numeroRomaneio = "002847";
+
+  // 📦 Dados simulados
   const [romaneio, setRomaneio] = useState([
-    {
-      id: 1,
-      chapa: "001",
-      material: "Branco Siena",
-      medida: "320x190",
-      local: "Galpão 1 - Fila A",
-      status: "Pendente",
-    },
-    {
-      id: 2,
-      chapa: "002",
-      material: "Preto Stellar",
-      medida: "315x180",
-      local: "Galpão 2 - Fila B",
-      status: "Conferido",
-    },
-    {
-      id: 3,
-      chapa: "003",
-      material: "Cinza Andorinha",
-      medida: "330x200",
-      local: "Galpão 1 - Fila C",
-      status: "Avaria",
-    },
+    { id: 1, chapa: "001", material: "Branco Siena", medida: "320x190", local: "Galpão 1 - Fila A", status: "Pendente" },
+    { id: 2, chapa: "002", material: "Preto Stellar", medida: "315x180", local: "Galpão 2 - Fila B", status: "Conferido" },
+    { id: 3, chapa: "003", material: "Cinza Andorinha", medida: "330x200", local: "Galpão 1 - Fila C", status: "Avaria" },
+    { id: 4, chapa: "004", material: "Marrom Café", medida: "310x180", local: "Galpão 3 - Fila D", status: "Pendente" },
+    { id: 5, chapa: "005", material: "Verde Ubatuba", medida: "300x170", local: "Galpão 2 - Fila E", status: "Conferido" },
+    { id: 6, chapa: "006", material: "Preto Stellar", medida: "315x180", local: "Galpão 2 - Fila B", status: "Pendente" },
   ]);
 
+  // 🔍 Estados para filtros
   const [filtroBusca, setFiltroBusca] = useState("");
-  const [focoBusca, setFocoBusca] = useState(false);
+  const [filtroStatus, setFiltroStatus] = useState("Todos");
+  const [filtroMaterial, setFiltroMaterial] = useState("Todos");
+  const [filtroLocal, setFiltroLocal] = useState("Todos");
 
+  // 🔢 Estado para paginação
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [itensPorPagina, setItensPorPagina] = useState(() => Number(localStorage.getItem("itensPorPagina")) || 5);
+
+  // 🔔 Estados para popup e toast
+  const [popup, setPopup] = useState({ aberto: false, id: null, acao: "", novoStatus: "" });
+  const [toast, setToast] = useState({ mensagem: "", visivel: false });
+
+  // 🔥 Funções para toast
+  const mostrarToast = (mensagem) => {
+    setToast({ mensagem, visivel: true });
+    setTimeout(() => setToast({ mensagem: "", visivel: false }), 3000);
+  };
+
+  // 🔄 Atualizar status
   const atualizarStatus = (id, novoStatus) => {
-    const atualizado = romaneio.map((item) => {
-      if (item.id === id) {
-        return { ...item, status: novoStatus };
-      }
-      return item;
-    });
+    const atualizado = romaneio.map((item) => (item.id === id ? { ...item, status: novoStatus } : item));
     setRomaneio(atualizado);
   };
 
+  // 🔓 Abrir popup
+  const abrirPopup = (id, acao, novoStatus) => {
+    setPopup({ aberto: true, id, acao, novoStatus });
+  };
+
+  // ✅ Confirmar popup
+  const confirmarAcao = () => {
+    atualizarStatus(popup.id, popup.novoStatus);
+    mostrarToast(
+      popup.novoStatus === "Pendente"
+        ? "Status resetado para Pendente"
+        : `Status alterado para ${popup.novoStatus}`
+    );
+    fecharPopup(false);
+  };
+
+  // ❌ Fechar popup
+  const fecharPopup = (mostrarToastCancelamento = true) => {
+    setPopup({ aberto: false, id: null, acao: "", novoStatus: "" });
+    if (mostrarToastCancelamento) mostrarToast("Ação cancelada");
+  };
+
+  // 🔍 Gerar listas únicas para filtros
+  const materiaisUnicos = [...new Set(romaneio.map((item) => item.material))];
+  const locaisUnicos = [...new Set(romaneio.map((item) => item.local))];
+
+  // 🔍 Aplicação dos filtros
   const romaneioFiltrado = romaneio.filter((item) => {
     const busca = filtroBusca.toLowerCase();
-    return (
+    const passaBusca =
       item.chapa.toLowerCase().includes(busca) ||
       item.material.toLowerCase().includes(busca) ||
       item.medida.toLowerCase().includes(busca) ||
       item.local.toLowerCase().includes(busca) ||
-      item.status.toLowerCase().includes(busca)
-    );
+      item.status.toLowerCase().includes(busca);
+
+    const passaStatus = filtroStatus === "Todos" || item.status === filtroStatus;
+    const passaMaterial = filtroMaterial === "Todos" || item.material === filtroMaterial;
+    const passaLocal = filtroLocal === "Todos" || item.local === filtroLocal;
+
+    return passaBusca && passaStatus && passaMaterial && passaLocal;
   });
 
-  // 🔥 Gerar listas únicas
-  const materiais = [...new Set(romaneio.map((item) => item.material))];
-  const locais = [...new Set(romaneio.map((item) => item.local))];
-  const medidas = [...new Set(romaneio.map((item) => item.medida))];
-  const chapas = [...new Set(romaneio.map((item) => item.chapa))];
-  const status = [...new Set(romaneio.map((item) => item.status))];
+  // 🔢 Lógica de paginação
+  const indiceUltimoItem = paginaAtual * itensPorPagina;
+  const indicePrimeiroItem = indiceUltimoItem - itensPorPagina;
+  const itensDaPagina = romaneioFiltrado.slice(indicePrimeiroItem, indiceUltimoItem);
+  const totalPaginas = Math.ceil(romaneioFiltrado.length / itensPorPagina);
 
+  // 📥 Exportar para Excel
+  const exportarParaExcel = () => {
+    const dados = romaneioFiltrado.map((item) => ({
+      Romaneio: numeroRomaneio,
+      "Nº Chapa": item.chapa,
+      Material: item.material,
+      Medida: item.medida,
+      Localização: item.local,
+      Status: item.status,
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Romaneio");
+    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+    saveAs(blob, `Romaneio_${numeroRomaneio}.xlsx`);
+    mostrarToast("Exportação Excel concluída");
+  };
+
+  // 📥 Exportar para PDF
+  const exportarParaPDF = () => {
+    const doc = new jsPDF();
+    doc.text(`Romaneio de Conferência #${numeroRomaneio}`, 14, 15);
+    const dados = romaneioFiltrado.map((item) => [
+      numeroRomaneio,
+      item.chapa,
+      item.material,
+      item.medida,
+      item.local,
+      item.status,
+    ]);
+    autoTable(doc, {
+      head: [["Romaneio", "Nº Chapa", "Material", "Medida", "Localização", "Status"]],
+      body: dados,
+      startY: 20,
+    });
+    doc.save(`Romaneio_${numeroRomaneio}.pdf`);
+    mostrarToast("Exportação PDF concluída");
+  };
+
+  // 🧠 Return da interface
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">📑 Romaneio #002847</h1>
+      <h1 className="text-3xl font-bold mb-6">📑 Romaneio #{numeroRomaneio}</h1>
 
-      {/* 🔸 Dashboard */}
+      {/* 🔵 Dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-500 text-white p-4 rounded-lg shadow">
-          <h2 className="text-lg">Total de Chapas</h2>
-          <p className="text-2xl font-bold">{romaneio.length}</p>
-        </div>
-        <div className="bg-green-500 text-white p-4 rounded-lg shadow">
-          <h2 className="text-lg">Conferidas</h2>
-          <p className="text-2xl font-bold">
-            {romaneio.filter((item) => item.status === "Conferido").length}
-          </p>
-        </div>
-        <div className="bg-red-500 text-white p-4 rounded-lg shadow">
-          <h2 className="text-lg">Avaria</h2>
-          <p className="text-2xl font-bold">
-            {romaneio.filter((item) => item.status === "Avaria").length}
-          </p>
-        </div>
-        <div className="bg-yellow-500 text-white p-4 rounded-lg shadow">
-          <h2 className="text-lg">Pendentes</h2>
-          <p className="text-2xl font-bold">
-            {romaneio.filter((item) => item.status === "Pendente").length}
-          </p>
-        </div>
+        {[
+          { label: "Total de Chapas", color: "blue", valor: romaneio.length },
+          { label: "Conferidas", color: "green", valor: romaneio.filter(i => i.status === "Conferido").length },
+          { label: "Avaria", color: "red", valor: romaneio.filter(i => i.status === "Avaria").length },
+          { label: "Pendentes", color: "yellow", valor: romaneio.filter(i => i.status === "Pendente").length },
+        ].map((card, idx) => (
+          <div key={idx} className={`bg-${card.color}-500 text-white p-4 rounded-lg shadow`}>
+            <h2 className="text-lg">{card.label}</h2>
+            <p className="text-2xl font-bold">{card.valor}</p>
+          </div>
+        ))}
       </div>
 
-      {/* 🔍 Campo de busca com lista dinâmica */}
-      <div className="relative mb-6">
+      {/* 🔽 Filtros */}
+      <div className="flex flex-col md:flex-row gap-4 mb-4">
         <input
           type="text"
-          placeholder="🔍 Buscar..."
           value={filtroBusca}
           onChange={(e) => setFiltroBusca(e.target.value)}
-          onFocus={() => setFocoBusca(true)}
-          onBlur={() => setTimeout(() => setFocoBusca(false), 200)}
-          className="w-full md:w-1/2 px-4 py-2 border rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="🔍 Buscar chapa, material, medida, local ou status..."
+          className="border px-4 py-2 rounded w-full md:w-1/4"
         />
-
-        {focoBusca && (
-          <div className="absolute mt-1 w-full md:w-1/2 bg-white border border-gray-300 rounded shadow-md z-10 max-h-60 overflow-auto">
-            <ul className="text-sm text-gray-700 p-2 space-y-1">
-              <li className="font-bold">• Nº Chapa</li>
-              {chapas.map((c) => (
-                <li
-                  key={c}
-                  className="cursor-pointer hover:bg-gray-100 rounded px-2"
-                  onClick={() => setFiltroBusca(c)}
-                >
-                  {c}
-                </li>
-              ))}
-
-              <li className="font-bold mt-2">• Material</li>
-              {materiais.map((m) => (
-                <li
-                  key={m}
-                  className="cursor-pointer hover:bg-gray-100 rounded px-2"
-                  onClick={() => setFiltroBusca(m)}
-                >
-                  {m}
-                </li>
-              ))}
-
-              <li className="font-bold mt-2">• Medida</li>
-              {medidas.map((m) => (
-                <li
-                  key={m}
-                  className="cursor-pointer hover:bg-gray-100 rounded px-2"
-                  onClick={() => setFiltroBusca(m)}
-                >
-                  {m}
-                </li>
-              ))}
-
-              <li className="font-bold mt-2">• Localização</li>
-              {locais.map((l) => (
-                <li
-                  key={l}
-                  className="cursor-pointer hover:bg-gray-100 rounded px-2"
-                  onClick={() => setFiltroBusca(l)}
-                >
-                  {l}
-                </li>
-              ))}
-
-              <li className="font-bold mt-2">• Status</li>
-              {status.map((s) => (
-                <li
-                  key={s}
-                  className="cursor-pointer hover:bg-gray-100 rounded px-2"
-                  onClick={() => setFiltroBusca(s)}
-                >
-                  {s}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className="border px-4 py-2 rounded">
+          <option value="Todos">Status: Todos</option>
+          <option value="Pendente">Pendente</option>
+          <option value="Conferido">Conferido</option>
+          <option value="Avaria">Avaria</option>
+        </select>
+        <select value={filtroMaterial} onChange={(e) => setFiltroMaterial(e.target.value)} className="border px-4 py-2 rounded">
+          <option value="Todos">Material: Todos</option>
+          {materiaisUnicos.map((material) => (
+            <option key={material} value={material}>{material}</option>
+          ))}
+        </select>
+        <select value={filtroLocal} onChange={(e) => setFiltroLocal(e.target.value)} className="border px-4 py-2 rounded">
+          <option value="Todos">Local: Todos</option>
+          {locaisUnicos.map((local) => (
+            <option key={local} value={local}>{local}</option>
+          ))}
+        </select>
       </div>
 
-      {/* 🔸 Tabela no Desktop */}
+      {/* 🔗 Exportações */}
+      <div className="flex gap-4 mb-4">
+        <button onClick={exportarParaExcel} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+          📄 Exportar Excel
+        </button>
+        <button onClick={exportarParaPDF} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+          📑 Exportar PDF
+        </button>
+      </div>
+
+      {/* 📱 Cards Mobile */}
+      <div className="md:hidden space-y-4">
+        {itensDaPagina.map((item) => (
+          <div key={item.id} className="border rounded-lg p-4 shadow">
+            <div className="flex justify-between mb-2">
+              <h2 className="text-xl font-bold">Chapa {item.chapa}</h2>
+              <span className={`px-2 py-1 rounded text-white ${
+                  item.status === "Conferido"
+                    ? "bg-green-500"
+                    : item.status === "Avaria"
+                    ? "bg-red-500"
+                    : "bg-yellow-500"
+                }`}>
+                {item.status}
+              </span>
+            </div>
+            <p><strong>Material:</strong> {item.material}</p>
+            <p><strong>Medida:</strong> {item.medida}</p>
+            <p><strong>Localização:</strong> {item.local}</p>
+
+            <div className="flex gap-2 mt-4">
+              {item.status === "Pendente" ? (
+                <>
+                  <button onClick={() => abrirPopup(item.id, "Conferir", "Conferido")} className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">
+                    ✅ Conferir
+                  </button>
+                  <button onClick={() => abrirPopup(item.id, "Avaria", "Avaria")} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">
+                    ❌ Avaria
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => abrirPopup(item.id, "Resetar", "Pendente")} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded">
+                  🔄 Resetar
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 💻 Tabela Desktop */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full table-auto bg-white border border-gray-200">
           <thead>
@@ -177,22 +247,20 @@ export default function RomaneioPage() {
             </tr>
           </thead>
           <tbody>
-            {romaneioFiltrado.map((item) => (
+            {itensDaPagina.map((item) => (
               <tr key={item.id}>
                 <td className="py-2 px-4 border">{item.chapa}</td>
                 <td className="py-2 px-4 border">{item.material}</td>
                 <td className="py-2 px-4 border">{item.medida}</td>
                 <td className="py-2 px-4 border">{item.local}</td>
                 <td className="py-2 px-4 border">
-                  <span
-                    className={`px-2 py-1 rounded text-white ${
+                  <span className={`px-2 py-1 rounded text-white ${
                       item.status === "Conferido"
                         ? "bg-green-500"
                         : item.status === "Avaria"
                         ? "bg-red-500"
                         : "bg-yellow-500"
-                    }`}
-                  >
+                    }`}>
                     {item.status}
                   </span>
                 </td>
@@ -200,24 +268,15 @@ export default function RomaneioPage() {
                   <div className="flex gap-2 flex-wrap">
                     {item.status === "Pendente" ? (
                       <>
-                        <button
-                          onClick={() => atualizarStatus(item.id, "Conferido")}
-                          className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded"
-                        >
+                        <button onClick={() => abrirPopup(item.id, "Conferir", "Conferido")} className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">
                           ✅ Conferir
                         </button>
-                        <button
-                          onClick={() => atualizarStatus(item.id, "Avaria")}
-                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
-                        >
+                        <button onClick={() => abrirPopup(item.id, "Avaria", "Avaria")} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">
                           ❌ Avaria
                         </button>
                       </>
                     ) : (
-                      <button
-                        onClick={() => atualizarStatus(item.id, "Pendente")}
-                        className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded"
-                      >
+                      <button onClick={() => abrirPopup(item.id, "Resetar", "Pendente")} className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded">
                         🔄 Resetar
                       </button>
                     )}
@@ -229,71 +288,98 @@ export default function RomaneioPage() {
         </table>
       </div>
 
-      {/* 🔸 Cards no Mobile */}
-      <div className="block md:hidden space-y-4">
-        {romaneioFiltrado.map((item) => (
-          <div
-            key={item.id}
-            className="border rounded-lg shadow p-4 bg-white flex flex-col"
+      {/* 🔘 Paginação */}
+      <div className="flex flex-col md:flex-row justify-center items-center gap-4 my-4">
+        <div className="flex items-center">
+          <label className="mr-2 font-medium">Exibir:</label>
+          <select
+            value={itensPorPagina}
+            onChange={(e) => {
+              const valor = Number(e.target.value);
+              setItensPorPagina(valor);
+              localStorage.setItem("itensPorPagina", valor);
+              setPaginaAtual(1);
+            }}
+            className="border px-2 py-1 rounded"
           >
-            <div className="flex justify-between">
-              <span className="font-semibold">Nº Chapa:</span>
-              {item.chapa}
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">Material:</span>
-              {item.material}
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">Medida:</span>
-              {item.medida}
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">Localização:</span>
-              {item.local}
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">Status:</span>
-              <span
-                className={`px-2 py-1 rounded text-white ${
-                  item.status === "Conferido"
-                    ? "bg-green-500"
-                    : item.status === "Avaria"
-                    ? "bg-red-500"
-                    : "bg-yellow-500"
+            {[5, 10, 15, 30, 50, 100].map((num) => (
+              <option key={num} value={num}>
+                {num}
+              </option>
+            ))}
+          </select>
+          <span className="ml-2">registros por página</span>
+        </div>
+
+        {totalPaginas > 1 && (
+          <div className="flex justify-center gap-2">
+            {paginaAtual > 1 && (
+              <button
+                onClick={() => setPaginaAtual((prev) => Math.max(prev - 1, 1))}
+                className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                ⬅️ Anterior
+              </button>
+            )}
+
+            {[...Array(totalPaginas)].map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setPaginaAtual(index + 1)}
+                className={`px-3 py-1 rounded ${
+                  paginaAtual === index + 1
+                    ? "bg-blue-700 text-white"
+                    : "bg-blue-500 hover:bg-blue-600 text-white"
                 }`}
               >
-                {item.status}
-              </span>
-            </div>
-            <div className="flex justify-start gap-2 flex-wrap mt-2">
-              {item.status === "Pendente" ? (
-                <>
-                  <button
-                    onClick={() => atualizarStatus(item.id, "Conferido")}
-                    className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded"
-                  >
-                    ✅ Conferir
-                  </button>
-                  <button
-                    onClick={() => atualizarStatus(item.id, "Avaria")}
-                    className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
-                  >
-                    ❌ Avaria
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => atualizarStatus(item.id, "Pendente")}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded"
-                >
-                  🔄 Resetar
-                </button>
-              )}
+                {index + 1}
+              </button>
+            ))}
+
+            {paginaAtual < totalPaginas && (
+              <button
+                onClick={() => setPaginaAtual((prev) => Math.min(prev + 1, totalPaginas))}
+                className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                Próxima ➡️
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 🔔 Popup */}
+      {popup.aberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-80">
+            <h2 className="text-xl font-semibold mb-4">Confirmação</h2>
+            <p className="mb-6">
+              Tem certeza que deseja <span className="font-bold">{popup.acao}</span> esta chapa?
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => fecharPopup(true)}
+                className="px-4 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarAcao}
+                className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                Confirmar
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* 🔔 Toast */}
+      {toast.visivel && (
+        <div className="fixed bottom-5 right-5 bg-blue-500 text-white px-4 py-2 rounded shadow-lg z-50">
+          {toast.mensagem}
+        </div>
+      )}
     </div>
   );
 }
