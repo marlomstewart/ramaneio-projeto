@@ -7,6 +7,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import RomaneioPage from './pages/RomaneioPage';
 import EmbalagemPage from './pages/EmbalagemPage';
+import ListagemRomaneiosPage from './pages/ListagemRomaneiosPage'; // 🔥 Importa a nova página
 
 // Função principal
 function App() {
@@ -20,6 +21,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/romaneio" element={<RomaneioPage />} />
         <Route path="/embalagem" element={<EmbalagemPage />} />
+        <Route path="/lista-de-romaneios" element={<ListagemRomaneiosPage />} /> {/* 🔥 Nova rota */}
       </Routes>
     </Router>
   );

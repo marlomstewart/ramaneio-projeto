@@ -36,11 +36,18 @@ export default function Navbar() {
             Home
           </Link>
           <Link
+            to="/lista-de-romaneios"
+            className="block md:inline-block hover:text-yellow-300 no-underline"
+            onClick={() => setMenuOpen(false)}
+          >
+            Lista de Romaneios {/* 🔥 Novo link */}
+          </Link>
+          <Link
             to="/romaneio"
             className="block md:inline-block hover:text-yellow-300 no-underline"
             onClick={() => setMenuOpen(false)}
           >
-            Romaneio
+            Conferência de Romaneio
           </Link>
           <Link
             to="/embalagem"

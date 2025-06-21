@@ -33,6 +33,9 @@ export default function RomaneioPage() {
   const [popup, setPopup] = useState({ aberto: false, id: null, acao: "", novoStatus: "" });
   const [toast, setToast] = useState({ mensagem: "", visivel: false });
 
+  // Estado para menu dropdown de Exportações
+  const [menuExportarAberto, setMenuExportarAberto] = useState(false);
+
   // 🔥 Funções para toast
   const mostrarToast = (mensagem) => {
     setToast({ mensagem, visivel: true });
@@ -184,14 +187,38 @@ export default function RomaneioPage() {
       </div>
 
       {/* 🔗 Exportações */}
-      <div className="flex gap-4 mb-4">
-        <button onClick={exportarParaExcel} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-          📄 Exportar Excel
-        </button>
-        <button onClick={exportarParaPDF} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
-          📑 Exportar PDF
-        </button>
-      </div>
+      <div className="relative mb-4">
+  <button
+    onClick={() => setMenuExportarAberto(!menuExportarAberto)}
+    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+  >
+    📤 Exportar
+  </button>
+
+  {menuExportarAberto && (
+    <div className="absolute mt-2 bg-white border rounded shadow z-50">
+      <button
+        onClick={() => {
+          exportarParaExcel();
+          setMenuExportarAberto(false);
+        }}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        📄 Exportar Excel
+      </button>
+      <button
+        onClick={() => {
+          exportarParaPDF();
+          setMenuExportarAberto(false);
+        }}
+        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+      >
+        📑 Exportar PDF
+      </button>
+    </div>
+  )}
+</div>
+
 
       {/* 📱 Cards Mobile */}
       <div className="md:hidden space-y-4">
